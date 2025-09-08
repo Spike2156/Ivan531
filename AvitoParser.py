@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 
 """
-Поиск бесплатных вещей на avito.ru
+AvitoParser - Поиск объявлений на avito.ru по цене или ключевым словам
 by Duff89 (https://github.com/Duff89)
 """
-__version__ = 1.0
+__version__ = 1.06
 
-
-import os
 import threading, tkinter, time
 import webbrowser
 import configparser
@@ -22,14 +20,13 @@ from tooltip import ToolTip
 class Window(tkinter.Tk):
     def __init__(self):
         tkinter.Tk.__init__(self)
-        self.geometry("1000x900")
         self.width_entry_field = 80
-        self.resizable(width=False, height=False)
+        self.resizable(width=True, height=True)
         self.title(f"AvitoParser v.{__version__}")
         self.is_run = False
         self.main_windows_init()
-        self.logger_tg()
         self.logger_widget_init()
+        self.tg_logger_init = False
 
     def main_windows_init(self):
         """Инициализация всех полей"""
@@ -70,13 +67,31 @@ class Window(tkinter.Tk):
         self.url_entry.grid(row=5, column=1, pady=5, sticky='w')
         self.url_entry.insert(0, self.start_url_env)
 
-        self.test_button = tkinter.Button(self, text="ТЕСТ", padx=50, command=self.telegram_log_test)
+        self.min_price_label = tkinter.Label(self, text="Минимальная цена:")
+        self.min_price_label.grid(row=6, column=0, pady=5, sticky='e')
+        self.min_price_entry = tkinter.Entry(self, width=self.width_entry_field)
+        self.min_price_entry.grid(row=6, column=1, pady=5, sticky='w')
+        self.min_price_entry.insert(0, str(self.min_price_env))
+
+        self.max_price_label = tkinter.Label(self, text="Максимальная цена:")
+        self.max_price_label.grid(row=7, column=0, pady=5, sticky='e')
+        self.max_price_entry = tkinter.Entry(self, width=self.width_entry_field)
+        self.max_price_entry.grid(row=7, column=1, pady=5, sticky='w')
+        self.max_price_entry.insert(0, str(self.max_price_env))
+
+        self.test_button = tkinter.Button(self, text="Тест", padx=50, command=self.telegram_log_test)
         self.test_button.grid(row=1, column=2, padx=0, pady=0)
 
         link_label = tkinter.Label(self, text="Связаться с автором или сообщить о проблеме",
                                    fg="blue", cursor="hand2")
         link_label.grid(column=1, row=200, pady=10)
         link_label.bind("<Button-1>", lambda e: webbrowser.open_new("https://github.com/Duff89/parser_avito"))
+
+        link_label = tkinter.Label(self, text="Поддержать развитие проекта",
+                                   fg="blue", cursor="hand2")
+        link_label.grid(column=1, row=201, pady=10)
+        link_label.bind("<Button-1>", lambda e: webbrowser.open_new("https://yoomoney.ru/to/410014382689862"))
+
 
         # кнопка "Старт"
         self.start_btn()
@@ -87,13 +102,22 @@ class Window(tkinter.Tk):
         ToolTip(self.freq_entry, "Пауза между повторами. В минутах").bind()
         ToolTip(self.url_entry, "Адрес с которого нужно начинать").bind()
         ToolTip(self.key_entry, "Ключевые слова. Вводить через запятую, регистр не важен").bind()
+        ToolTip(self.min_price_entry,
+                "Будет искать только объявления, где цена больше либо равна введенному значению. "
+                "Оставьте 0 если Вам не нужен этот параметр").bind()
+        ToolTip(self.max_price_entry,
+                "Будет искать только объявления, где цена меньше либо равна введенному значению").bind()
+
 
     def telegram_log_test(self):
         """Тестирование отправки сообщения в telegram"""
+        #if not self.tg_logger_init:
+        self.logger_tg()
         token = self.token_entry.get()
         chat_id = self.chat_id_entry.get()
         if all([token, chat_id]):
             logger.success('test')
+
             logger.info('Если сообщение пришло к Вам в telegram - значит всё настроено правильно. Если нет - '
                         'результат парсинга всегда можно посмотреть в папке result или ниже')
             return None
@@ -101,13 +125,13 @@ class Window(tkinter.Tk):
 
     def start_scraping(self):
         """Кнопка старт. Запуск"""
+        self.logger_tg()
 
         """Если URL все-таки не заполнен"""
         url = self.url_entry.get()
         if not url:
             logger.info("Внимание! URL - обязательный параметр. Пример ссылки:")
-            logger.info("https://www.avito.ru/all/lichnye_veschi?cd=1&"
-                        "q=%D0%B1%D0%B5%D1%81%D0%BF%D0%BB%D0%B0%D1%82%D0%BD%D0%BE")
+            logger.info("https://www.avito.ru/moskva/remont_i_stroitelstvo/sadovaya_tehnika-ASgBAgICAURYnAI")
             return
         """Прячем кнопку старт"""
         self.is_run = True
@@ -118,7 +142,7 @@ class Window(tkinter.Tk):
 
         """Размещаем кнопку Стоп"""
         self.stop_button = tkinter.Button(self, text="Стоп", padx=50, command=self.stop_scraping)
-        self.stop_button.grid(row=6, column=0, columnspan=2, padx=5, pady=5)
+        self.stop_button.grid(row=8, column=0, columnspan=2, padx=5, pady=5)
 
         """Сохраняем конфиг"""
         self.save_config()
@@ -140,13 +164,13 @@ class Window(tkinter.Tk):
         self.update()
 
     def start_btn(self):
-        """Кнопка старт. Остановка работы"""
+        """Кнопка старт. Старт работы"""
         self.start_button = tkinter.Button(self,
                                            padx=50,
                                            text="Старт",
                                            command=lambda: self.is_run or
-                                                threading.Thread(target=self.start_scraping).start())
-        self.start_button.grid(row=6, column=0, columnspan=2, padx=5, pady=5)
+                                                           threading.Thread(target=self.start_scraping).start())
+        self.start_button.grid(row=8, column=0, columnspan=2, padx=5, pady=5)
 
     def stop_scraping(self):
         """Кнопка стоп. Остановка работы"""
@@ -166,15 +190,19 @@ class Window(tkinter.Tk):
         self.num_ads_env = self.config["Avito"]["NUM_ADS"]
         self.freq_env = self.config["Avito"]["FREQ"]
         self.keys_env = self.config["Avito"]["KEYS"]
+        self.max_price_env = self.config["Avito"].get("MAX_PRICE", "0")
+        self.min_price_env = self.config["Avito"].get("MIN_PRICE", "0")
 
     def save_config(self):
         """Сохраняет конфиг"""
         self.config["Avito"]["TG_TOKEN"] = self.token_entry.get()
         self.config["Avito"]["CHAT_ID"] = self.chat_id_entry.get()
-        self.config["Avito"]["URL"] = str(self.url_entry.get()).replace('%', '%%') # bugfix
+        self.config["Avito"]["URL"] = str(self.url_entry.get()).replace('%', '%%')  # bugfix
         self.config["Avito"]["NUM_ADS"] = self.ads_entry.get()
         self.config["Avito"]["FREQ"] = self.freq_entry.get()
         self.config["Avito"]["KEYS"] = self.key_entry.get()
+        self.config["Avito"]["MAX_PRICE"] = self.max_price_entry.get()
+        self.config["Avito"]["MIN_PRICE"] = self.min_price_entry.get()
         with open('settings.ini', 'w') as configfile:
             self.config.write(configfile)
 
@@ -182,6 +210,7 @@ class Window(tkinter.Tk):
         """Логирование в telegram"""
         token = self.token_entry.get()
         chat_id = self.chat_id_entry.get()
+        if self.tg_logger_init: return
         if token and chat_id:
             params = {
                 'token': token,
@@ -191,14 +220,15 @@ class Window(tkinter.Tk):
 
             """Все логи уровня SUCCESS и выше отсылаются в телегу"""
             logger.add(tg_handler, level="SUCCESS", format="{message}")
+            self.tg_logger_init = True
             return None
         logger.info("Данные для отправки в telegram не заполнены. Результат будет сохранен в файл и выведен здесь")
 
     def logger_widget_init(self):
         """Инициализация логирования в widget"""
         self.log_widget = tkinter.Text(self, wrap="word")
-        self.log_widget.grid(row=8, column=1)
-        self.log_widget.config(width=80, height=35)
+        self.log_widget.grid(row=9, column=0, columnspan=3, padx=5)
+        self.log_widget.config(width=123, height=35)
         logger.add(self.logger_text_widget, format="{time:HH:mm:ss} - {message}")
         logger.info("Запуск AvitoParser")
         logger.info("Чтобы начать работу, проверьте, чтобы поле URL было заполненными, "
@@ -216,11 +246,15 @@ class Window(tkinter.Tk):
         num_ads = self.ads_entry.get() or 5
         keys = self.key_entry.get()
         self.frequency = self.freq_entry.get() or 5
+        max_price = self.max_price_entry.get()
+        min_price = self.min_price_entry.get()
 
         AvitoParse(
             url=url,
             count=int(num_ads),
             keysword_list=keys.split(","),
+            max_price=int(max_price),
+            min_price=int(min_price),
         ).parse()
 
 
