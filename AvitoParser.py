@@ -118,8 +118,8 @@ class Window(tkinter.Tk):
         if all([token, chat_id]):
             logger.success('test')
 
-            logger.info('Если сообщение пришло к Вам в telegram - значит всё настроено правильно. Если нет - '
-                        'результат парсинга всегда можно посмотреть в папке result или ниже')
+            logger.info('Если сообщение пришло к Вам в telegram - значит всё настроено правильно. Если нет, '
+                        'проверьте настройки и попробуйте снова')
             return None
         logger.info("Должны быть заполнены поля ТОКЕН TELEGRAM и CHAT ID TELEGRAM")
 
@@ -222,7 +222,7 @@ class Window(tkinter.Tk):
             logger.add(tg_handler, level="SUCCESS", format="{message}")
             self.tg_logger_init = True
             return None
-        logger.info("Данные для отправки в telegram не заполнены. Результат будет сохранен в файл и выведен здесь")
+        logger.info("Данные для отправки в telegram не заполнены. Результат будет выведен в окне приложения")
 
     def logger_widget_init(self):
         """Инициализация логирования в widget"""
