@@ -1,6 +1,5 @@
 import os
 import time
-import csv
 from notifiers.logging import NotificationHandler
 from seleniumbase import SB
 from loguru import logger
@@ -9,18 +8,16 @@ from locator import LocatorAvito
 
 class AvitoParse:
     """
-    Парсинг  товаров на avito.ru
+    Парсинг товаров на avito.ru
     url - начальный url
     keysword_list- список ключевых слов
     count - сколько проверять страниц
-    tg_token - токен telegram, если не передать- не будет отправки в телегу, результат будет в файле и консоли
     """
 
     def __init__(self,
                  url: str,
                  keysword_list: list,
                  count: int = 10,
-                 tg_token: str = None,
                  max_price: int = 0,
                  min_price: int = 0,
 
@@ -28,9 +25,6 @@ class AvitoParse:
         self.url = url
         self.keys_word = keysword_list
         self.count = count
-        self.data = []
-        self.tg_token = tg_token
-        self.title_file = self.__get_file_title()
         self.max_price = int(max_price)
         self.min_price = int(min_price)
 
@@ -44,7 +38,6 @@ class AvitoParse:
     def __paginator(self):
         """Кнопка далее"""
         logger.info('Страница успешно загружена. Просматриваю объявления')
-        self.__create_file_csv()
         while self.count > 0:
             self.__parse_page()
             """Проверяем есть ли кнопка далее"""
@@ -98,20 +91,15 @@ class AvitoParse:
             if self.keys_word != ['']:
                 if any([item.lower() in (description.lower() + name.lower()) for item in self.keys_word]) \
                         and \
-                        self.min_price <= int(
-                        price) <= self.max_price:
-                    self.data.append(self.__parse_full_page(url, data))
-                    """Отправляем в телеграм"""
+                        self.min_price <= int(price) <= self.max_price:
+                    data = self.__parse_full_page(url, data)
                     self.__pretty_log(data=data)
-                    self.__save_data(data=data)
             elif self.min_price <= int(price) <= self.max_price:
-
-                self.data.append(self.__parse_full_page(url, data))
-                """Отправляем в телеграм"""
+                data = self.__parse_full_page(url, data)
                 self.__pretty_log(data=data)
-                self.__save_data(data=data)
             else:
                 continue
+        self.__save_viewed()
 
     def __pretty_log(self, data):
         """Красивый вывод"""
@@ -167,68 +155,11 @@ class AvitoParse:
             return True
         return False
 
-    def __save_data(self, data: dict):
-        """Сохраняет результат в файл keyword*.csv"""
-
-        with open(f"result/{self.title_file}.csv", mode="a", newline='', encoding='utf-8', errors='ignore') as file:
-            writer = csv.writer(file)
-            writer.writerow([
-                data.get("name", '-'),
-                data.get("price", '-'),
-                data.get("url", '-'),
-                data.get("description", '-'),
-                data.get("views", '-'),
-                data.get("date_public", '-'),
-                data.get("seller_name", 'no'),
-            ])
-
-        """сохраняет просмотренные объявления"""
+    def __save_viewed(self):
+        """Сохраняет просмотренные объявления"""
         with open('viewed.txt', 'w') as file:
             for item in set(self.viewed_list):
-                file.write("%s\n" % item)
-
-    @property
-    def __is_csv_empty(self) -> bool:
-        """Пустой csv или нет"""
-        os.makedirs(os.path.dirname("result/"), exist_ok=True)
-        try:
-            with open(f"result/{self.title_file}.csv", 'r', encoding='utf-8', errors='ignore') as file:
-                reader = csv.reader(file)
-                try:
-                    # Попытка чтения первой строки
-                    first_row = next(reader)
-                except StopIteration:
-                    # файл пустой
-                    return True
-                return False
-        except FileNotFoundError:
-            return True
-
-    @logger.catch
-    def __create_file_csv(self):
-        """Создает файл и прописывает названия если нужно"""
-
-        if self.__is_csv_empty:
-            with open(f"result/{self.title_file}.csv", 'a', encoding='utf-8', errors='ignore') as file:
-                writer = csv.writer(file)
-                writer.writerow([
-                    "Название",
-                    "Цена",
-                    "Ссылка",
-                    "Описание",
-                    "Просмотров",
-                    "Дата публикации",
-                    "Продавец",
-                ])
-
-    def __get_file_title(self) -> str:
-        """Определяет название файла"""
-        if self.keys_word != ['']:
-            title_file = "-".join(list(map(str.lower, self.keys_word)))
-
-        else:
-            title_file = 'all'
-        return title_file
+                file.write(f"{item}\n")
 
 
     def parse(self):
